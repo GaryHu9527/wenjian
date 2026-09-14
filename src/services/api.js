@@ -1,9 +1,26 @@
 import axios from 'axios'
-import { mockZhihuData } from '../data/mockZhihu'
-import { mockAnalysis } from '../data/mockAnalysis'
-const useMock = import.meta.env.VITE_USE_MOCK !== 'false'
-const client = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL || '' })
-function mapZhihuItem(item) { return { id: item.ContentID || item.id || item.Url || item.url, title: item.Title || item.title, excerpt: (item.ContentText || item.excerpt || '').replace(/<[^>]+>/g, '').slice(0, 240), author: item.AuthorName || item.author || '知乎用户', authorUrl: item.AuthorUrl || item.author_url || null, type: item.ContentType || item.type || '讨论', date: item.EditTime ? new Date(item.EditTime * 1000).toISOString().slice(0, 10) : item.date, stats: item.stats || `赞同 ${(item.VoteUpCount ?? 0).toLocaleString()}　评论 ${(item.CommentCount ?? 0).toLocaleString()}`, image: item.AuthorAvatar || item.image || null, url: item.Url || item.url || null } }
-export async function searchZhihu(text, article = null) { const query = text || article?.title || ''; if (useMock) return { items: mockZhihuData.map(item => ({ ...item, query })), relatedQuestions: mockZhihuData.filter(item => item.category === 'question').map(item => ({ title: item.title, url: item.url || null })) }; const { data } = await client.post('/api/zhihu/search', { text: query, article, count: 5 }); if (!data.success) throw new Error(data.error?.message || '知乎搜索失败'); return { items: (data.data.items || []).map(mapZhihuItem), relatedQuestions: data.data.related_questions || [] } }
-export async function analyzeText(text, mode, context = '', article = null) { if (useMock) return mockAnalysis[mode]; const { data } = await client.post('/api/analyze', { text, mode, context, article }); if (!data.success) throw new Error(data.error?.message || '分析失败'); return data.data }
-export async function chatAboutText(question, selectedText, context = '', article = null) { if (useMock) return { answer: `“${selectedText}”需要放在上下文中理解。${question}——可先看句法位置，再看作者的表达意图。`, related_questions: ['这句话在全文中起什么作用？', '是否有相似的古汉语句式？'] }; const { data } = await client.post('/api/chat', { question, selected_text: selectedText, context, article }); if (!data.success) throw new Error(data.error?.message || '追问失败'); return data.data }
+import { analyzeLocal, answerLocal } from './study'
+import { safeUrl } from './storage'
+const client = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL || '', timeout: 30000 })
+export async function apiRequest(path, payload, signal) {
+  try {
+    const response = payload === undefined ? await client.get(path, { signal }) : await client.post(path, payload, { signal })
+    if (!response.data?.success) throw new Error(response.data?.error?.message || '服务响应异常，请重试。')
+    return response.data.data
+  } catch (e) {
+    if (e.code === 'ERR_CANCELED') throw e
+    throw new Error(e.response?.data?.error?.message || (e.code === 'ECONNABORTED' ? '请求超时，请稍后重试。' : e.message === 'Network Error' ? '暂时无法连接服务，请检查网络。' : e.message))
+  }
+}
+export async function analyzeText(text, mode, context, article, engine = 'reference', signal) {
+  if (engine === 'reference') return analyzeLocal(text, mode, article)
+  return apiRequest('/api/analyze', { text, mode, context, article, engine: 'ai' }, signal)
+}
+export async function chatAboutText(question, selectedText, context, article, engine = 'reference', signal, history = []) {
+  if (engine === 'reference') return answerLocal(question, selectedText, article)
+  return apiRequest('/api/chat', { question, selected_text: selectedText, context, article, history, engine: 'ai' }, signal)
+}
+export async function searchZhihu(text, article, signal) {
+  const result = await apiRequest('/api/zhihu/search', { text: text || article.title, article, count: 5 }, signal)
+  return { items: (result.items || []).map((i, n) => ({ ...i, id: i.id || i.url || n, url: safeUrl(i.url), authorUrl: safeUrl(i.author_url), excerpt: (i.excerpt || '').replace(/<[^>]+>/g, ''), stats: typeof i.stats === 'object' ? `赞同 ${i.stats?.vote_up_count ?? 0} · 评论 ${i.stats?.comment_count ?? 0}` : i.stats || '', category: i.category || (i.url?.includes('/p/') ? 'column' : i.url?.includes('/people/') ? 'person' : 'discussion') })), relatedQuestions: result.related_questions || [], sourceMode: result.source_mode }
+}

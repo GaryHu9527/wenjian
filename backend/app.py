@@ -13,11 +13,11 @@ from services.classical_nlp import ClassicalNlpService
 from services.translation_reference import TranslationReferenceService
 from services.zhihu_service import ZhihuService
 
-load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
-def create_app():
+def create_app(config=None):
     app = Flask(__name__)
-    config = Config()
+    config = config or Config()
     CORS(app, resources={r"/api/*": {"origins": list(config.allowed_origins)}})
     app.config["WENJIAN_CONFIG"] = config
     app.config["AI_SERVICE"] = AiService(config)

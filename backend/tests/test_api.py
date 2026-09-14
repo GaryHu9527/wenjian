@@ -1,10 +1,11 @@
 import unittest
 from app import create_app
+from config import Config
 
 
 class ApiTestCase(unittest.TestCase):
     def setUp(self):
-        self.client = create_app().test_client()
+        self.client = create_app(Config(use_mock_ai=True, use_mock_zhihu=True)).test_client()
 
     def test_health(self):
         response = self.client.get("/api/health")
@@ -51,3 +52,23 @@ class ApiTestCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class ConfigurationRegressionTests(unittest.TestCase):
+    def test_environment_is_read_when_config_is_created(self):
+        import os
+        from unittest.mock import patch
+        with patch.dict(os.environ, {"USE_MOCK_AI": "false", "AI_MODEL": "regression-model"}):
+            config = Config()
+            self.assertFalse(config.use_mock_ai)
+            self.assertEqual(config.ai_model, "regression-model")
+
+    def test_remote_chat_sends_the_actual_question(self):
+        from unittest.mock import Mock, patch
+        from services.ai_service import AiService
+        config = Config(use_mock_ai=False, ai_api_key="test", ai_base_url="https://example.test/v1", ai_model="test")
+        response = Mock(status_code=200, ok=True)
+        response.json.return_value = {"choices": [{"message": {"content": '{"answer":"谁是宾语","related_questions":[]}'}}]}
+        with patch("services.ai_service.requests.post", return_value=response) as post:
+            answer = AiService(config).answer_chat("谁作什么成分？", "吾谁与归")
+            self.assertIn("谁作什么成分", post.call_args.kwargs["json"]["messages"][-1]["content"])
+            self.assertEqual(answer["answer"], "谁是宾语")

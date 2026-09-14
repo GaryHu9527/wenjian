@@ -1,10 +1,48 @@
 <script setup>
-import { computed, ref, watch } from 'vue'; import TextSelectionToolbar from './TextSelectionToolbar.vue'
-const props = defineProps({ article: Object, previousArticle: Object, nextArticle: Object, articlePosition: Number, articleTotal: Number }); const emit = defineEmits(['select-text', 'select-tool', 'navigate']); const toolbar = ref(false), position = ref({}), activeTab = ref('original'), readerEl = ref(null)
-const tabContent = computed(() => ({ original: props.article.content, notes: ['谪守：因罪贬谪，出任外地官职。', '越明年：到了第二年。越，到。', '迁客骚人：被贬谪的官员和失意的文人。', '不以物喜，不以己悲：不因外物好坏和自身得失而或喜或悲。'], translation: ['庆历四年春天，滕子京被贬任巴陵郡太守。到了第二年，政事顺利，百姓和乐，各种荒废的事业都兴办起来。', '我看那巴陵郡的美景，全在洞庭湖上。它连接着远方的山，吞吐着长江的水，浩浩荡荡，无边无际。'], appreciation: ['《岳阳楼记》以洞庭湖的阴晴变化映照人的悲喜，进而超越个人得失，提出“先忧后乐”的公共理想。', '文章由楼写景，由景入情，再由情入理，层层推进，节奏开阔。'] }[activeTab.value] || props.article.content))
-function onSelect() { const selection = window.getSelection(), text = selection?.toString().trim(); if (!text) return; const range = selection.getRangeAt(0), rect = range.getBoundingClientRect(); emit('select-text', text); position.value = { left: `${Math.max(300, rect.left + rect.width / 2 - 190)}px`, top: `${Math.max(125, rect.top - 66)}px` }; toolbar.value = true }
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import TextSelectionToolbar from './TextSelectionToolbar.vue'
+const props = defineProps({ article: Object, previousArticle: Object, nextArticle: Object, articlePosition: Number, articleTotal: Number })
+const emit = defineEmits(['select-text', 'select-tool', 'navigate', 'note'])
+const toolbar = ref(false), position = ref({}), activeTab = ref('original'), readerEl = ref(null), bodyEl = ref(null)
+const tabs = [['original','原文'], ['notes','注释'], ['translation','译文'], ['appreciation','赏析']]
+const tabContent = computed(() => activeTab.value === 'notes' ? props.article.notes.map(n => `${n.text}：${n.meaning}`) : activeTab.value === 'translation' ? props.article.translation : activeTab.value === 'appreciation' ? [props.article.background, ...props.article.appreciation] : props.article.content)
+function onSelect() {
+  const s = window.getSelection()
+  if (!s?.rangeCount || s.isCollapsed || !bodyEl.value?.contains(s.anchorNode) || !bodyEl.value?.contains(s.focusNode)) { toolbar.value = false; return }
+  const text = s.toString().trim()
+  if (!text || activeTab.value !== 'original') return
+  const rect = s.getRangeAt(0).getBoundingClientRect(), width = Math.min(372, window.innerWidth - 24)
+  emit('select-text', text.slice(0, 1000))
+  position.value = { left: `${Math.max(12, Math.min(window.innerWidth - width - 12, rect.left + rect.width / 2 - width / 2))}px`, top: `${Math.max(80, Math.min(window.innerHeight - 90, rect.top - 74))}px`, width: `${width}px` }
+  toolbar.value = true
+}
 function choose(mode) { emit('select-tool', mode); toolbar.value = false; window.getSelection()?.removeAllRanges() }
-watch(() => props.article.id, () => { activeTab.value = 'original'; toolbar.value = false; readerEl.value?.scrollTo({ top: 0, behavior: 'smooth' }) })
+function analyzeParagraph(paragraph) { emit('select-text', paragraph); emit('select-tool', 'translation') }
+function close(e) { if (e.key === 'Escape') toolbar.value = false }
+function hideToolbar() { toolbar.value = false }
+watch(() => props.article.id, async () => { activeTab.value = 'original'; toolbar.value = false; await nextTick(); readerEl.value?.scrollTo({ top: 0 }) })
+watch(activeTab, hideToolbar)
+onMounted(() => { document.addEventListener('selectionchange', onSelect); document.addEventListener('keydown', close); window.addEventListener('resize', hideToolbar) })
+onBeforeUnmount(() => { document.removeEventListener('selectionchange', onSelect); document.removeEventListener('keydown', close); window.removeEventListener('resize', hideToolbar) })
 </script>
-<template><section ref="readerEl" class="reader" @mouseup="onSelect"><div class="reader-inner"><div class="breadcrumb">首页　/　{{ article.dynasty }}　/　{{ article.author }}　/　{{ article.title }}</div><h1>{{ article.title }}</h1><div class="author">{{ article.author }}　 {{ article.dynasty }}</div><div class="reader-tabs"><button v-for="[key,label] in [['original','原文'],['notes','注释'],['translation','译文'],['appreciation','赏析']]" :class="{active:activeTab===key}" @click="activeTab=key">{{ label }}</button></div><div class="hint">{{ activeTab === 'original' ? '试试选中正文中的一句话。' : '不同阅读层可帮助你理解字词、语义和写作结构。' }}</div><article :class="`article-${activeTab}`"><p v-for="(paragraph, index) in tabContent" :key="index">{{ paragraph }}</p></article><footer class="article-pager"><button :disabled="!previousArticle" @click="$emit('navigate', 'previous')">‹　{{ previousArticle ? '上一篇' : '已经是第一篇' }}</button><span>第 {{ articlePosition }} / {{ articleTotal }} 篇</span><button :disabled="!nextArticle" @click="$emit('navigate', 'next')">{{ nextArticle ? '下一篇' : '已经是最后一篇' }}　›</button></footer></div><TextSelectionToolbar :visible="toolbar" :position="position" @tool="choose" /></section></template>
-<style scoped>.article-pager{display:flex;align-items:center;justify-content:space-between;margin-top:34px;padding-top:22px;border-top:1px solid #3d3d3d}.article-pager button{border:1px solid #888;border-radius:7px;background:#181818;color:#eee;padding:9px 14px;cursor:pointer}.article-pager button:disabled{border-color:#343434;color:#666;cursor:default}.article-pager span{font-size:13px;color:#999}</style>
+<template>
+<section ref="readerEl" class="reader" @scroll="hideToolbar">
+ <div class="reader-inner">
+  <div class="breadcrumb">经典选读 <span>/</span> {{ article.dynasty }} <span>/</span> {{ article.title }}</div>
+  <div class="title-row"><h1>{{ article.title }}</h1><span class="edition">{{ article.edition }}</span></div>
+  <div class="author">{{ article.author }} · {{ article.dynasty }}</div>
+  <div class="reader-tabs" role="tablist" aria-label="阅读内容">
+   <button v-for="[key,label] in tabs" :key="key" :id="`tab-${key}`" role="tab" :aria-selected="activeTab === key" aria-controls="reading-content" :class="{active:activeTab===key}" @click="activeTab=key" @keydown.right.prevent="activeTab=tabs[(tabs.findIndex(t=>t[0]===activeTab)+1)%tabs.length][0]; $nextTick(() => $el.querySelector('#tab-'+activeTab)?.focus())" @keydown.left.prevent="activeTab=tabs[(tabs.findIndex(t=>t[0]===activeTab)+tabs.length-1)%tabs.length][0]; $nextTick(() => $el.querySelector('#tab-'+activeTab)?.focus())">{{ label }}</button>
+  </div>
+  <p class="hint">{{ activeTab === 'original' ? '划选文字即可释义、翻译或提问，也可点击段落旁的“研读”。' : '译注为学习参考，可通过页末的原典链接核对文字。' }}</p>
+  <Transition name="reading" mode="out-in">
+   <article ref="bodyEl" id="reading-content" :key="article.id + activeTab" role="tabpanel" :aria-labelledby="`tab-${activeTab}`" :class="`article-${activeTab}`">
+    <div v-for="(paragraph,index) in tabContent" :key="index" class="paragraph"><p>{{ paragraph }}</p><button v-if="activeTab==='original'" class="paragraph-tool" :aria-label="`研读第 ${index+1} 段`" @click="analyzeParagraph(paragraph)">研读 <span aria-hidden="true">↗</span></button></div>
+   </article>
+  </Transition>
+  <div class="source-line"><a :href="article.source" target="_blank" rel="noopener noreferrer">查阅原典 ↗</a><span>古文原文 · 现代译注为本站整理</span></div>
+  <footer class="article-pager"><button :disabled="!previousArticle" @click="emit('navigate','previous')">‹ 上一篇</button><span>{{ articlePosition }} / {{ articleTotal }}</span><button :disabled="!nextArticle" @click="emit('navigate','next')">下一篇 ›</button></footer>
+ </div>
+ <TextSelectionToolbar :visible="toolbar" :position="position" @tool="choose" />
+</section>
+</template>

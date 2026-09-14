@@ -1,43 +1,64 @@
 # 文鉴
 
-面向古文阅读的学习应用。前端提供篇目阅读、划词分析、白话译文、语法与知识卡片、相关问答和追问；Flask 后端提供分析、语料、问答与知乎内容接口。
+古文阅读与研读应用。Vue 前端与同源 HTTP 接口可通过一次启动运行；生产构建输出可部署的 Cloudflare Worker，无需一直开启本机。
 
-默认以本地 mock 数据运行，因此无需 API 密钥即可体验完整界面。
+## 运行
 
-## 本地启动
-
-前端：
+需要 Node.js 22.12+（或兼容的更新版本）。
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
-前端默认使用 mock 数据。要调用本地后端，请复制 `.env.example` 为 `.env.local`，并设置：
-
-```dotenv
-VITE_USE_MOCK=false
-VITE_API_BASE_URL=http://127.0.0.1:5000
-```
-
-后端（建议 Python 3.10–3.13）：
-
-```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install Flask Flask-Cors python-dotenv requests gunicorn
-cp backend/.env.example backend/.env
-cd backend && ../.venv/bin/python app.py
-```
-
-`backend/requirements.txt` 中的 `jiayan` 是可选的古汉语 NLP 增强组件；它还需要单独下载模型文件。未安装时系统会自动退回到内置规则分析，不影响启动和基础功能。
-
-## 验证
+访问 `http://127.0.0.1:5173`。默认使用内置篇目资料，阅读、译注、语法、资料问答及笔记不需要 API 密钥。
 
 ```bash
 npm run build
-cd backend && ../.venv/bin/python -m unittest discover -s tests -v
+npm test
+npm run preview
 ```
 
-## 配置
+生产预览为 `http://127.0.0.1:4173`。构建产物位于 `dist/server/index.js` 与 `dist/client`，托管身份保存在 `.openai/hosting.json`。
 
-后端配置样例位于 `backend/.env.example`，包括 AI 兼容接口、知乎凭证、跨域来源和缓存时长。凭证只应放在 `backend/.env`，不要提交到版本库。
+## 已实现的功能
+
+- 七篇阅读材料，包含明确标注的全文与选段，分别提供原文、段落译文、字词、语法、背景和赏析。
+- 全文关键词与作者搜索、篇目切换、最近阅读和更多篇目。
+- 鼠标划词、触摸选文和键盘可用的段落研读按钮；字词、语法、段落译文、知识、提问、摘录笔记。
+- 基于本篇资料的主题问答；问题超出资料范围时明确说明，不伪装成通用 AI。
+- 浏览器本地笔记的新建、编辑、删除、Markdown 导出。笔记不会自动跨设备同步，请定期导出。
+- 深浅色主题、字号设置、移动端侧栏、键盘焦点管理、减少动态效果偏好。
+- 真实 AI 兼容接口与知乎代理、超时/错误/限流提示、知乎站内搜索入口。
+
+## 可选服务
+
+开发与本地生产预览从 `backend/.env` 读取服务配置。线上通过托管平台的环境变量设置敏感值，不将密钥打包到前端。
+
+```dotenv
+AI_API_KEY=
+AI_BASE_URL=
+AI_MODEL=
+USE_MOCK_AI=false
+ZHIHU_API_KEY=
+ZHIHU_BASE_URL=https://developer.zhihu.com
+USE_MOCK_ZHIHU=false
+```
+
+AI 接口须支持 `${AI_BASE_URL}/chat/completions` 和 JSON 输出。配置后在“阅读设置”中选择 AI。没有有效密钥时开放式 AI 问答不可用。知乎可能受账号配额限制，应用不会绕过配额或用虚假结果代替。线上不配置密钥也能使用内置阅读资料。
+
+原 Flask 服务保留在 `backend/`，适用于单独部署或继续使用 Jiayan 的场景；它不是当前托管版本的运行依赖。前端默认调用同源接口。需要显式调用独立 Flask 时，在启动环境中设置 `VITE_REMOTE_BACKEND_URL`，并允许对应 CORS 来源。
+
+```bash
+cd backend
+../.venv/bin/python -m unittest discover -s tests -v
+../.venv/bin/python app.py
+```
+
+## 内容说明
+
+古文原文为公有领域作品，各篇附原典链接。现代译注为本站整理的学习参考，可能存在异文或解释差异，不等同于审定教材。长篇的节选范围在标题旁标明。篇目资料模式返回所在段落译文，并明确标注范围，避免将整段译文误认为所选单字的解释。
+
+## 上线与域名
+
+Sites 项目身份保存在 `.openai/hosting.json`。发布时保存与源码一致的构建版本。自定义 `www` 域名需要注册域名及 DNS 管理权限；平台生成的 HTTPS 地址不需要另购域名。

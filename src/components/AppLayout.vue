@@ -1,3 +1,20 @@
-<script setup>import { ref } from 'vue'; const mobilePanel = ref('')</script>
-<template><div class="app-layout"><header><slot name="top" /><div class="mobile-actions"><button :class="{active:mobilePanel==='left'}" @click="mobilePanel = mobilePanel === 'left' ? '' : 'left'">目录</button><button :class="{active:mobilePanel==='right'}" @click="mobilePanel = mobilePanel === 'right' ? '' : 'right'">知识</button></div></header><aside class="left" :class="{mobileOpen:mobilePanel==='left'}"><slot name="left" /></aside><main @click="mobilePanel=''"><slot /></main><aside class="right" :class="{mobileOpen:mobilePanel==='right'}"><slot name="right" /></aside></div></template>
-<style scoped>.mobile-actions{display:none}@media(max-width:1023px){.mobile-actions{display:flex;position:absolute;right:72px;top:17px;gap:6px}.mobile-actions button{border:1px solid #555;background:#111;color:#ddd;border-radius:5px;padding:5px 8px;font-size:12px}.mobile-actions button.active{background:#eee;color:#111}.left.mobileOpen,.right.mobileOpen{display:block!important;position:fixed;z-index:20;top:64px;bottom:0;background:#0b0b0b;box-shadow:0 12px 36px #000}.left.mobileOpen{left:0;width:min(288px,84vw);border-right:1px solid #444}.right.mobileOpen{right:0;width:min(390px,94vw);border-left:1px solid #444}}@media(max-width:760px){:deep(.topbar nav b){display:none}}@media(min-width:1024px){.mobile-actions{display:none}}</style>
+<script setup>
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+const panel = ref('')
+let previousFocus
+function openPanel(value) { if(window.innerWidth < 1180) panel.value = value }
+function closePanel() { panel.value = '' }
+function resize() { if(window.innerWidth>=1180 || panel.value==='left' && window.innerWidth>=800) closePanel() }
+function trap(event) {
+ if(!panel.value || event.key!=='Tab') return
+ const el=document.querySelector(panel.value==='left'?'#article-directory':'#study-sidebar')
+ const items=[...el.querySelectorAll('button:not(:disabled),a[href],input,textarea,select,summary')].filter(e=>e.getClientRects().length && getComputedStyle(e).visibility!=='hidden')
+ const first=items[0],last=items.at(-1)
+ if(event.shiftKey && document.activeElement===first) {event.preventDefault();last?.focus()}
+ else if(!event.shiftKey && document.activeElement===last) {event.preventDefault();first?.focus()}
+}
+watch(panel,async(value,old)=>{if(value){if(!old) previousFocus=document.activeElement;await nextTick();document.querySelector(`${value==='left'?'#article-directory':'#study-sidebar'} .drawer-head button`)?.focus({preventScroll:true})}else{await nextTick();previousFocus?.focus({preventScroll:true})}})
+onMounted(()=>window.addEventListener('resize',resize));onBeforeUnmount(()=>window.removeEventListener('resize',resize))
+defineExpose({openPanel,closePanel})
+</script>
+<template><div class="app-layout" @keydown.esc="closePanel" @keydown="trap"><header><slot name="top" /><div class="mobile-actions"><button :aria-expanded="panel==='left'" aria-controls="article-directory" @click="panel=panel==='left'?'':'left'">目录</button><button :aria-expanded="panel==='right'" aria-controls="study-sidebar" @click="panel=panel==='right'?'':'right'">研读</button></div></header><Transition name="shade"><button v-if="panel" class="panel-shade" aria-label="关闭侧栏" tabindex="-1" @click="closePanel" /></Transition><aside id="article-directory" class="left" :class="{mobileOpen:panel==='left'}" :inert="panel==='right'"><div class="drawer-head"><b>篇目目录</b><button aria-label="关闭目录" @click="closePanel">×</button></div><slot name="left" /></aside><main :inert="!!panel"><slot /></main><aside id="study-sidebar" class="right" :class="{mobileOpen:panel==='right'}" :inert="panel==='left'"><div class="drawer-head"><b>研读与探索</b><button aria-label="关闭研读侧栏" @click="closePanel">×</button></div><slot name="right" /></aside></div></template>

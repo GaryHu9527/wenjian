@@ -23,7 +23,7 @@ class ZhihuService:
 
     def search_zhihu(self, text, article=None, keywords=None, count=5):
         query = self.generate_query(text, article, keywords)
-        key = hashlib.sha256(query.encode()).hexdigest()
+        key = hashlib.sha256(f"{query}|{count}".encode()).hexdigest()
         cached = self.cache.get(key)
         if cached:
             return cached
@@ -62,11 +62,18 @@ class ZhihuService:
             response = requests.get(f"{self.config.zhihu_base_url.rstrip('/')}/api/v1/content/zhihu_search", params={"Query": query, "Count": min(count, 5)}, headers={"Authorization": f"Bearer {self.config.zhihu_api_key}", "X-Request-Timestamp": str(int(time.time())), "Content-Type": "application/json"}, timeout=12)
         except requests.Timeout as exc:
             raise ZhihuServiceError("ZHIHU_TIMEOUT", "知乎搜索响应较慢，请稍后重试", 502) from exc
+        except requests.RequestException as exc:
+            raise ZhihuServiceError("ZHIHU_CONNECTION_ERROR", "知乎连接暂时不可用", 502) from exc
         if response.status_code == 429:
             raise ZhihuServiceError("ZHIHU_RATE_LIMITED", "知乎搜索服务繁忙，请稍后重试", 429)
         if not response.ok:
             raise ZhihuServiceError("ZHIHU_REQUEST_FAILED", "知乎搜索暂时不可用", 502)
-        payload = response.json()
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise ZhihuServiceError("ZHIHU_INVALID_RESPONSE", "知乎返回格式异常", 502) from exc
+        if "rate limit" in str(payload.get("Message", "")).lower():
+            raise ZhihuServiceError("ZHIHU_RATE_LIMITED", "知乎检索暂时限流，可使用站内搜索入口", 429)
         if payload.get("Code") not in (None, 0):
             raise ZhihuServiceError("ZHIHU_API_ERROR", payload.get("Message", "知乎搜索失败"), 502)
         return [self._normalize(item) for item in payload.get("Data", {}).get("Items", [])[:5]]

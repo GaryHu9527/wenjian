@@ -40,6 +40,8 @@ class AiService:
                 response = requests.post(f"{self.config.ai_base_url.rstrip('/')}/chat/completions", headers={"Authorization": f"Bearer {self.config.ai_api_key}", "Content-Type": "application/json"}, json={"model": self.config.ai_model, "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": build_prompt(text, context, article, item_mode, nlp_context, translation_reference)}], "temperature": 0.2, "response_format": {"type": "json_object"}}, timeout=20)
             except requests.Timeout as exc:
                 raise AiServiceError("AI_TIMEOUT", "分析服务响应较慢，请稍后重试", 502) from exc
+            except requests.RequestException as exc:
+                raise AiServiceError("AI_CONNECTION_ERROR", "无法连接分析服务", 502) from exc
             if response.status_code == 429:
                 raise AiServiceError("AI_RATE_LIMITED", "分析服务繁忙，请稍后重试", 429)
             if not response.ok:
@@ -68,5 +70,24 @@ class AiService:
     def answer_chat(self, question, selected_text, context=None, article=None, analysis=None):
         if self.config.use_mock_ai:
             return {"answer": f"围绕“{selected_text}”，可以先从句法位置、上下文与篇章主旨三方面理解：{question}。当前 Demo 使用本地规则回答；配置 AI 服务后会给出更具体的教学解释。", "related_questions": ["这句话在全文中起什么作用？", "是否有相似句式？"]}
-        result = self._remote_result(selected_text, context, article, "knowledge")
-        return {"answer": result.get("summary", "暂无法生成回答"), "related_questions": result.get("questions", [])}
+        if not all([self.config.ai_api_key, self.config.ai_base_url, self.config.ai_model]):
+            raise AiServiceError("AI_NOT_CONFIGURED", "AI 服务尚未配置", 503)
+        import json
+        messages = [
+            {"role": "system", "content": "你是严谨的古汉语教学助手。结合选文和上下文回答用户真正提出的问题，不编造出处；只输出 JSON，包含 answer 字符串和 related_questions 字符串数组。"},
+            {"role": "user", "content": json.dumps({"question": question, "selected_text": selected_text, "context": context, "article": article, "analysis": analysis}, ensure_ascii=False)},
+        ]
+        try:
+            response = requests.post(f"{self.config.ai_base_url.rstrip('/')}/chat/completions", headers={"Authorization": f"Bearer {self.config.ai_api_key}"}, json={"model": self.config.ai_model, "messages": messages, "temperature": 0.2, "response_format": {"type": "json_object"}}, timeout=25)
+            if response.status_code == 429:
+                raise AiServiceError("AI_RATE_LIMITED", "AI 服务繁忙，请稍后重试", 429)
+            if not response.ok:
+                raise AiServiceError("AI_REQUEST_FAILED", "AI 请求失败，请检查服务配置", 502)
+            result = safe_parse_json(response.json()["choices"][0]["message"]["content"])
+            if not isinstance(result, dict) or not isinstance(result.get("answer"), str):
+                raise ValueError("Invalid answer")
+            return {"answer": result["answer"], "related_questions": result.get("related_questions", []), "source_mode": "ai"}
+        except requests.RequestException as exc:
+            raise AiServiceError("AI_CONNECTION_ERROR", "无法连接 AI 服务，请稍后重试", 502) from exc
+        except (KeyError, IndexError, ValueError, TypeError, JsonParseError) as exc:
+            raise AiServiceError("AI_INVALID_RESPONSE", "AI 回答格式异常，请重试", 502) from exc
