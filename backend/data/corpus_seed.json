@@ -1,0 +1,6 @@
+[
+  {"title":"论语·学而篇","author":"孔子及弟子","dynasty":"春秋","text":"子曰：学而时习之，不亦说乎？有朋自远方来，不亦乐乎？人不知而不愠，不亦君子乎？","source":"chinese-poetry/chinese-poetry（论语/lunyu.json）"},
+  {"title":"论语·为政篇","author":"孔子及弟子","dynasty":"春秋","text":"子曰：温故而知新，可以为师矣。","source":"chinese-poetry/chinese-poetry（论语/lunyu.json）"},
+  {"title":"论语·里仁篇","author":"孔子及弟子","dynasty":"春秋","text":"子曰：朝闻道，夕死可矣。","source":"chinese-poetry/chinese-poetry（论语/lunyu.json）"},
+  {"title":"诗经·关雎","author":"佚名","dynasty":"先秦","text":"关关雎鸠，在河之洲。窈窕淑女，君子好逑。","source":"chinese-poetry/chinese-poetry"}
+]

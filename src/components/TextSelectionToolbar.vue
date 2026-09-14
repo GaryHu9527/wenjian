@@ -1,0 +1,2 @@
+<script setup>defineProps({ visible: Boolean, position: Object }); defineEmits(['tool'])</script>
+<template><div v-if="visible" class="selection-tools" :style="position"><button @click="$emit('tool', 'word')">▤<span>释义</span></button><button @click="$emit('tool', 'grammar')">⌘<span>语法</span></button><button @click="$emit('tool', 'translation')">A<span>翻译</span></button><button @click="$emit('tool', 'knowledge')">♧<span>知识</span></button><button @click="$emit('tool', 'chat')">?<span>提问</span></button></div></template>

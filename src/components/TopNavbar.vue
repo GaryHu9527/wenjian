@@ -1,0 +1,2 @@
+<script setup>defineProps({ modelValue: String }); defineEmits(['update:modelValue'])</script>
+<template><div class="topbar"><div class="brand">文鉴 <span>读古文，也读世界</span></div><label class="search">⌕ <input :value="modelValue" placeholder="搜索文章、作者或关键词……" @input="$emit('update:modelValue', $event.target.value)" /></label><nav><b>阅读</b><span>笔记</span><span>探索</span><i></i><span>⚙</span><em>胡</em></nav></div></template>
