@@ -32,6 +32,7 @@ class ClassicalNlpService:
         result = {"text": text, "tokens": [], "pos": [], "sentences": [], "punctuated_text": None, "provider": "unavailable"}
         tools = self._load()
         if not tools:
+            result.update({"provider": "rules", "sentences": [part.strip() for part in re.split(r"[。！？!?]", text) if part.strip()], "warning": "未加载 Jiayan 模型；仅按标点分句，不提供模型词性标注。"})
             return result
         try:
             tokenizer, tagger, sentencizer, punctuator = tools

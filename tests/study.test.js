@@ -36,3 +36,12 @@ test('real AI chat includes actual question and history, and invalid responses a
 test('Zhihu quota errors become a retryable error and are not disguised as real content',async()=>{
  const original=globalThis.fetch;try{globalThis.fetch=async()=>Response.json({Code:1001,Message:'rate limit exceeded'});const r=await handleApi(req('/api/zhihu/search',{text:'岳阳楼记'}),{ZHIHU_API_KEY:'test'});assert.equal(r.status,429);assert.equal((await r.json()).error.code,'ZHIHU_RATE_LIMITED')}finally{globalThis.fetch=original}
 })
+
+test('project brief: corpus alias, context-aware query and four-category demo work without keys',async()=>{
+ const article={id:'yueyang',title:'岳阳楼记',author:'范仲淹',dynasty:'北宋'}
+ const corpus=await handleApi(req('/api/corpus',{query:'先天下之忧而忧',article}),{});assert.equal(corpus.status,200);const items=(await corpus.json()).data.items;assert.ok(items.some(i=>i.title==='孟子·尽心上'));assert.ok(items.every(i=>i.id!=='yueyang'&&i.source.startsWith('https://')))
+ const demo=await handleApi(req('/api/zhihu/search',{text:'先天下之忧而忧',article,engine:'mock'}),{});assert.equal(demo.status,200);const data=(await demo.json()).data;assert.equal(data.source_mode,'mock');for(const term of ['岳阳楼记','范仲淹','北宋','先天下之忧而忧'])assert.ok(data.query.includes(term));assert.deepEqual(data.items.map(i=>i.category),['discussion','question','column','person']);assert.ok(data.items.every(i=>!i.url))
+})
+test('project brief: knowledge analysis actually returns related corpus for the example passage',()=>{
+ const data=analyzeLocal('先天下之忧而忧','knowledge',studyArticles[0]);assert.ok(data.corpus.some(i=>i.title==='孟子·尽心上'));assert.ok(data.corpus.every(i=>i.relation_type==='theme'))
+})

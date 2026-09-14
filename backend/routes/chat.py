@@ -5,7 +5,11 @@ chat_bp = Blueprint("chat", __name__)
 
 @chat_bp.post("/api/chat")
 def chat():
-    payload = request.get_json(silent=True) or {}
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify(success=False, error={"code": "INVALID_REQUEST", "message": "请求必须是 JSON 对象"}), 400
+    if payload.get("article") is not None and not isinstance(payload["article"], dict):
+        return jsonify(success=False, error={"code": "INVALID_REQUEST", "message": "article 参数格式错误"}), 400
     question, text = payload.get("question"), payload.get("selected_text")
     if not isinstance(question, str) or not question.strip() or not isinstance(text, str) or not text.strip():
         return jsonify(success=False, error={"code": "INVALID_REQUEST", "message": "question 和 selected_text 不能为空"}), 400

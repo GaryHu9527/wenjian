@@ -9,6 +9,8 @@ import { articles } from './data/articles'
 import { analyzeText, apiRequest, searchZhihu } from './services/api'
 import { readStored, writeStored } from './services/storage'
 const settings = ref(readStored('wenjian-settings', { theme: 'dark', fontSize: 22, engine: 'reference' }, d => d && ['dark','light'].includes(d.theme) && [18,20,22,24,26,28].includes(d.fontSize) && ['reference','ai'].includes(d.engine)))
+settings.value.discussionMode = settings.value.discussionMode === 'mock' ? 'mock' : 'live'
+const discussionSource = ref('zhihu')
 const historyIds = readStored('wenjian-reading-history', [], d => Array.isArray(d) && d.every(x => typeof x === 'string'))
 const currentArticle = ref(articles.find(a => a.id === historyIds[0]) || articles[0]), readingHistory = ref(historyIds.map(id => articles.find(a => a.id === id)).filter(Boolean))
 const selectedText = ref(''), selectedMode = ref('knowledge'), selectedQuestion = ref(''), zhihuResults = ref([]), isLoading = ref(false), zhihuError = ref(''), error = ref(''), analysisResult = ref(null), isAnalyzing = ref(false), searchQuery = ref(''), layout = ref(null)
@@ -25,7 +27,7 @@ function saveHistory(article) { readingHistory.value = [article, ...readingHisto
 async function loadZhihuContent() {
  zhihuController?.abort(); zhihuController = new AbortController(); const id = ++zhihuId
  isLoading.value = true; zhihuError.value = ''; zhihuResults.value = []
- try { const result = await searchZhihu(selectedText.value, currentArticle.value, zhihuController.signal); if(id === zhihuId) { if(result.sourceMode === 'mock') zhihuError.value = '当前服务返回演示数据。请使用下方知乎搜索入口查看真实讨论。'; else zhihuResults.value = result.items } }
+ try { const result = await searchZhihu(selectedText.value, currentArticle.value, zhihuController.signal, settings.value.discussionMode); if(id === zhihuId) { discussionSource.value = result.sourceMode; zhihuResults.value = result.items } }
  catch(e) { if(id === zhihuId && e.code !== 'ERR_CANCELED') zhihuError.value = e.message }
  finally { if(id === zhihuId) isLoading.value = false }
 }
@@ -67,6 +69,7 @@ function exportNotes() {
 async function checkServices() { checking.value = true; try { serviceStatus.value = await apiRequest('/api/health') } catch { serviceStatus.value = { unreachable: true } } finally { checking.value = false } }
 function navigate(view) { if(view === 'notes') showModal('notes'); else if(view === 'settings') { showModal('settings'); checkServices() } else if(view === 'explore') handleTool('knowledge'); else { modal.value?.close(); layout.value?.closePanel() } }
 watch(settings, value => { document.documentElement.dataset.theme = value.theme; document.documentElement.style.setProperty('--reader-font', `${value.fontSize}px`); persist('wenjian-settings', value) }, { deep: true, immediate: true })
+watch(() => settings.value.discussionMode, () => { if(selectedMode.value === 'zhihu') loadZhihuContent() })
 watch(() => settings.value.engine, () => { if(['word','grammar','translation','knowledge'].includes(selectedMode.value)) loadAnalysis(selectedMode.value) })
 onMounted(() => { saveHistory(currentArticle.value); loadAnalysis('knowledge') })
 </script>
@@ -75,7 +78,7 @@ onMounted(() => { saveHistory(currentArticle.value); loadAnalysis('knowledge') }
  <template #top><TopNavbar v-model="searchQuery" :search-results="filteredArticles" @navigate="navigate" @select="selectArticle($event); searchQuery=''" /></template>
  <template #left><ArticleSidebar :articles="filteredArticles" :history="readingHistory" :current-article="currentArticle" :searching="!!searchQuery.trim()" :note-count="notes.length" @select="selectArticle" @notes="showModal('notes')" /></template>
  <ReaderPanel :article="currentArticle" :previous-article="articles[articleIndex-1]" :next-article="articles[articleIndex+1]" :article-position="articleIndex+1" :article-total="articles.length" @select-text="selectText" @select-tool="handleTool" @navigate="navigateArticle" />
- <template #right><KnowledgeSidebar :selected-text="selectedText" :selected-mode="selectedMode" :selected-question="selectedQuestion" :analysis-result="analysisResult" :analyzing="isAnalyzing" :results="zhihuResults" :loading="isLoading" :error="error" :zhihu-error="zhihuError" :article="currentArticle" :engine="settings.engine" @select-mode="handleTool" @select-question="chooseQuestion" @note="openNote()" @retry="handleTool(selectedMode)" /></template>
+ <template #right><KnowledgeSidebar :selected-text="selectedText" :selected-mode="selectedMode" :selected-question="selectedQuestion" :analysis-result="analysisResult" :analyzing="isAnalyzing" :results="zhihuResults" :loading="isLoading" :error="error" :zhihu-error="zhihuError" :article="currentArticle" :engine="settings.engine" :discussion-source="discussionSource" @select-mode="handleTool" @select-question="chooseQuestion" @note="openNote()" @retry="handleTool(selectedMode)" /></template>
 </AppLayout>
 <Transition name="toast"><div v-if="toast" class="toast" role="status">{{ toast }}<button v-if="deletedNote && toast==='笔记已删除'" @click="restoreNote">撤销</button></div></Transition>
 <dialog ref="modal" class="app-dialog" aria-labelledby="modal-title" @click="e => { if(e.target === modal) modal.close() }">
@@ -96,6 +99,7 @@ onMounted(() => { saveHistory(currentArticle.value); loadAnalysis('knowledge') }
   <label class="field">外观<select v-model="settings.theme"><option value="dark">墨色 · 深色</option><option value="light">纸白 · 浅色</option></select></label>
   <label class="field">原文字号 <span>{{ settings.fontSize }} px</span><input v-model.number="settings.fontSize" type="range" min="18" max="28" step="2" /></label>
   <label class="field">分析与问答<select v-model="settings.engine"><option value="reference">篇目资料 · 无需外部服务</option><option value="ai" :disabled="!serviceStatus?.ai_available">AI 服务 {{ serviceStatus?.ai_available ? '· 已配置' : '· 尚未就绪' }}</option></select></label>
+  <label class="field">讨论内容<select v-model="settings.discussionMode"><option value="live">知乎实时检索</option><option value="mock">演示数据 · 无需密钥</option></select></label>
   <p class="muted">篇目资料提供段落译文、重点字词、语法和主题问答。AI 模式用于更自由的问题。</p>
   <div class="service-status" role="status"><p>阅读与笔记：可用</p><p>AI：{{ checking ? '正在检查…' : serviceStatus?.ai_available ? '已配置' : '未配置，当前使用篇目资料' }}</p><p>知乎：{{ checking ? '正在检查…' : serviceStatus?.zhihu_available ? '已配置，实际检索受服务配额限制' : '可通过搜索入口查看' }}</p><p v-if="serviceStatus?.unreachable">远程服务暂时不可达，本地阅读不受影响。</p><button @click="checkServices" :disabled="checking">重新检查</button></div>
  </template>

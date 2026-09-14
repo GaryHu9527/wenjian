@@ -1,4 +1,5 @@
 import { studyArticles } from '../data/studyArticles.js'
+import { searchCorpus } from './corpus.js'
 export const MODES = ['word', 'grammar', 'translation', 'knowledge', 'comprehensive']
 const clean = value => String(value || '').replace(/[\s，。！？、；：“”‘’？!?,.;:]/g, '')
 export function findArticle(article, text = '') {
@@ -18,7 +19,7 @@ export function analyzeLocal(text, mode, article) {
   if (mode === 'word') return { ...base, summary: notes.length ? '选文中的重点字词' : '所选文字暂未收录独立词条，可结合段落译文理解。', items: notes.map(n => ({ ...n, type: '字词注释', confidence: 'reference' })), context_translation: rows.map(r => r[1]).join('\n\n'), range_note: rangeNote }
   if (mode === 'translation') return { ...base, literal: rows.map(r => r[1]).join('\n\n'), natural: '', range_note: rangeNote, original: rows.map(r => r[0]).join('\n\n'), key_points: notes.map(n => ({ text: n.text, explanation: n.meaning })) }
   if (mode === 'grammar') return { ...base, patterns, sentence_pattern: patterns[0]?.pattern || '暂无匹配的句式条目', modern_order: patterns[0]?.order || '', explanation: patterns[0]?.explanation || '这不表示所选文字没有特殊句式。可查看本篇已收录的语法条目，或启用 AI 分析。', available_patterns: a.grammar, components: [] }
-  return { ...base, summary: a.background, literary_context: a.appreciation.join('\n\n'), people: [{ name: a.author, description: `《${a.title}》作者署名：${a.author}。` }], keywords: [a.title, a.author, a.dynasty], questions: a.questions }
+  return { ...base, summary: a.background, literary_context: a.appreciation.join('\n\n'), people: [{ name: a.author, description: `《${a.title}》作者署名：${a.author}。` }], keywords: [a.title, a.author, a.dynasty], questions: a.questions, corpus: searchCorpus(text, { articleId: a.id }) }
 }
 export function answerLocal(question, text, article) {
   const a = findArticle(article, text)
@@ -42,5 +43,5 @@ export function answerLocal(question, text, article) {
     if (note) answer = `${note.text}：${note.meaning}`
     else { supported = false; answer = '这道问题超出了当前篇目资料的问答范围，暂时无法据此给出可靠答案。你可以改问下方的篇目问题，或在设置中切换到已配置的 AI 服务。' }
   }
-  return { answer, supported, source_mode: 'reference', source_label: '基于篇目资料的检索回答', source_url: a.source, related_questions: a.questions }
+  return { answer, supported, source_mode: 'reference', source_label: '基于篇目资料的检索回答', source_url: a.source, related_questions: a.questions, corpus: searchCorpus(text, { articleId: a.id }) }
 }

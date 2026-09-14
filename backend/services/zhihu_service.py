@@ -18,8 +18,8 @@ class ZhihuService:
 
     def generate_query(self, text, article=None, keywords=None):
         article = article or {}
-        parts = [article.get("author", ""), article.get("title", ""), *(keywords or []), text]
-        return " ".join(part.strip() for part in parts if isinstance(part, str) and part.strip())[:50]
+        parts = [article.get("author", ""), article.get("title", ""), article.get("dynasty", ""), *(keywords or []), text]
+        return " ".join(part.strip() for part in parts if isinstance(part, str) and part.strip())[:100]
 
     def search_zhihu(self, text, article=None, keywords=None, count=5):
         query = self.generate_query(text, article, keywords)
@@ -28,13 +28,19 @@ class ZhihuService:
         if cached:
             return cached
         if self.config.use_mock_zhihu:
-            items = MOCK_ZHIHU_RESULTS[:count]
-            result = {"query": query, "items": items, "related_questions": self._related_questions(items, article, text), "source_mode": "mock"}
+            result = self.demo_result(text, article, count)
         else:
             items = self._search_remote(query, count)
             # 关联问题从同一次真实检索中提炼，避免为侧栏额外消耗一次知乎 API 配额。
             result = {"query": query, "items": items, "related_questions": self._related_questions(items, article, text), "source_mode": "zhihu"}
         return self.cache.set(key, result)
+
+    def demo_result(self, text, article=None, count=5):
+        article = article or {}
+        title = article.get("title", "当前篇目")
+        categories = [("discussion", f"如何理解“{text[:24]}”？"), ("question", f"《{title}》的思想主旨是什么？"), ("column", f"从篇章结构读《{title}》"), ("person", article.get("author", "篇目作者"))]
+        items = [{"id": f"demo-{i}", "title": heading, "category": category, "excerpt": "演示数据：用于体验内容分类与侧栏排版，不代表真实知乎内容。", "author": "演示示例", "url": None, "stats": "无真实互动数据"} for i, (category, heading) in enumerate(categories)][:count]
+        return {"query": self.generate_query(text, article), "items": items, "related_questions": self._related_questions(items, article, text), "source_mode": "mock"}
 
     @staticmethod
     def _related_questions(items, article, text):

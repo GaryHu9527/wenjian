@@ -72,3 +72,31 @@ class ConfigurationRegressionTests(unittest.TestCase):
             answer = AiService(config).answer_chat("谁作什么成分？", "吾谁与归")
             self.assertIn("谁作什么成分", post.call_args.kwargs["json"]["messages"][-1]["content"])
             self.assertEqual(answer["answer"], "谁是宾语")
+
+class ProjectBriefTests(unittest.TestCase):
+    def setUp(self):
+        self.client = create_app(Config(use_mock_ai=True, use_mock_zhihu=True)).test_client()
+
+    def test_corpus_alias(self):
+        response = self.client.post('/api/corpus', json={'query': '温故而知新'})
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()['data']['items'])
+
+    def test_query_contains_all_context_and_demo_categories(self):
+        from services.zhihu_service import ZhihuService
+        service = ZhihuService(Config(use_mock_zhihu=True))
+        result = service.demo_result('先天下之忧而忧', {'title': '岳阳楼记', 'author': '范仲淹', 'dynasty': '北宋'})
+        for term in ['范仲淹', '岳阳楼记', '北宋', '先天下之忧而忧']:
+            self.assertIn(term, result['query'])
+        self.assertEqual({i['category'] for i in result['items']}, {'discussion','question','column','person'})
+
+    def test_bad_payload_is_a_client_error(self):
+        for route in ['/api/analyze','/api/chat','/api/corpus','/api/zhihu/search']:
+            self.assertEqual(self.client.post(route, json=[1]).status_code, 400)
+        self.assertEqual(self.client.post('/api/zhihu/search', json={'text':'测试', 'count':'bad'}).status_code, 400)
+
+    def test_rule_fallback_without_jiayan(self):
+        from services.classical_nlp import ClassicalNlpService
+        result = ClassicalNlpService().analyze_classical_text('学而时习之。不亦说乎？')
+        self.assertEqual(result['provider'], 'rules')
+        self.assertEqual(len(result['sentences']), 2)

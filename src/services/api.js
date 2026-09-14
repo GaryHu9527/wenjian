@@ -20,7 +20,7 @@ export async function chatAboutText(question, selectedText, context, article, en
   if (engine === 'reference') return answerLocal(question, selectedText, article)
   return apiRequest('/api/chat', { question, selected_text: selectedText, context, article, history, engine: 'ai' }, signal)
 }
-export async function searchZhihu(text, article, signal) {
-  const result = await apiRequest('/api/zhihu/search', { text: text || article.title, article, count: 5 }, signal)
+export async function searchZhihu(text, article, signal, discussionMode = 'live') {
+  const result = await apiRequest('/api/zhihu/search', { text: text || article.title, article, count: 5, engine: discussionMode === 'mock' ? 'mock' : 'live' }, signal)
   return { items: (result.items || []).map((i, n) => ({ ...i, id: i.id || i.url || n, url: safeUrl(i.url), authorUrl: safeUrl(i.author_url), excerpt: (i.excerpt || '').replace(/<[^>]+>/g, ''), stats: typeof i.stats === 'object' ? `赞同 ${i.stats?.vote_up_count ?? 0} · 评论 ${i.stats?.comment_count ?? 0}` : i.stats || '', category: i.category || (i.url?.includes('/p/') ? 'column' : i.url?.includes('/people/') ? 'person' : 'discussion') })), relatedQuestions: result.related_questions || [], sourceMode: result.source_mode }
 }
