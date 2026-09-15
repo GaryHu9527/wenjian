@@ -53,7 +53,7 @@ USE_MOCK_ZHIHU=false
 
 AI 接口须支持 `${AI_BASE_URL}/chat/completions` 和 JSON 输出。配置后在“阅读设置”中选择 AI。没有有效密钥时开放式 AI 问答不可用。知乎可能受账号配额限制，应用不会绕过配额或用虚假结果代替。线上不配置密钥也能使用内置阅读资料。
 
-原 Flask 服务保留在 `backend/`，适用于单独部署或继续使用 Jiayan 的场景；它不是当前托管版本的运行依赖。前端默认调用同源接口。需要显式调用独立 Flask 时，在启动环境中设置 `VITE_REMOTE_BACKEND_URL`，并允许对应 CORS 来源。
+原 Flask 服务保留在 `backend/`，适用于单独部署或继续使用 Jiayan 的场景；它不是当前托管版本的运行依赖。前端固定调用同源 `/api/*`，生产环境应由托管平台或 Nginx 反向代理到实际后端，避免浏览器直接请求远端 Worker。
 
 ```bash
 cd backend
@@ -70,6 +70,8 @@ cd backend
 公开 Demo：[文鉴](https://wenjian-reading.garyhu9527.chatgpt.site)。2026-09-15 已检查匿名访问，无需登录。
 
 Sites 项目身份保存在 `.openai/hosting.json`。发布时保存与源码一致的构建版本。自定义 `www` 域名需要注册域名及 DNS 管理权限；平台生成的 HTTPS 地址不需要另购域名。
+
+阿里云香港 Ubuntu 快速部署说明见 [deploy/README-SERVER.md](deploy/README-SERVER.md)。该方案由香港服务器托管 `dist/client` 静态文件，并把 `/api/*` 反向代理到现有 Worker origin。
 
 ## 项目书核对
 

@@ -2,7 +2,7 @@ import axios from 'axios'
 import { aiHeaders } from './aiSession'
 import { analyzeLocal, answerLocal } from './study'
 import { safeUrl } from './storage'
-const client = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL || '', timeout: 30000 })
+const client = axios.create({ timeout: 30000 })
 export async function apiRequest(path, payload, signal, headers = {}) {
   try {
     const response = payload === undefined ? await client.get(path, { signal }) : await client.post(path, payload, { signal, headers })
