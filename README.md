@@ -67,6 +67,8 @@ cd backend
 
 ## 上线与域名
 
+公开 Demo：[文鉴](https://wenjian-reading.garyhu9527.chatgpt.site)。2026-09-15 已检查匿名访问，无需登录。
+
 Sites 项目身份保存在 `.openai/hosting.json`。发布时保存与源码一致的构建版本。自定义 `www` 域名需要注册域名及 DNS 管理权限；平台生成的 HTTPS 地址不需要另购域名。
 
 ## 项目书核对
