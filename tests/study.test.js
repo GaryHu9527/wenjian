@@ -45,3 +45,7 @@ test('project brief: corpus alias, context-aware query and four-category demo wo
 test('project brief: knowledge analysis actually returns related corpus for the example passage',()=>{
  const data=analyzeLocal('先天下之忧而忧','knowledge',studyArticles[0]);assert.ok(data.corpus.some(i=>i.title==='孟子·尽心上'));assert.ok(data.corpus.every(i=>i.relation_type==='theme'))
 })
+
+test('project brief example has meaning, structure, translation and corpus through the API',async()=>{
+ const r=await handleApi(req('/api/analyze',{text:'先天下之忧而忧',mode:'comprehensive',article:{id:'yueyang'}}),{});assert.equal(r.status,200);const d=(await r.json()).data;assert.ok(d.word.items.length);assert.ok(d.grammar.patterns.length);assert.ok(d.translation.literal.includes('天下人忧虑'));assert.ok(d.knowledge.corpus.length)
+})
