@@ -49,3 +49,23 @@ test('project brief: knowledge analysis actually returns related corpus for the 
 test('project brief example has meaning, structure, translation and corpus through the API',async()=>{
  const r=await handleApi(req('/api/analyze',{text:'先天下之忧而忧',mode:'comprehensive',article:{id:'yueyang'}}),{});assert.equal(r.status,200);const d=(await r.json()).data;assert.ok(d.word.items.length);assert.ok(d.grammar.patterns.length);assert.ok(d.translation.literal.includes('天下人忧虑'));assert.ok(d.knowledge.corpus.length)
 })
+
+test('page AI credentials are request scoped and never fall back on invalid configuration', async () => {
+ const original=globalThis.fetch, calls=[]
+ globalThis.fetch=async (url, options) => { calls.push({url,options}); return Response.json({choices:[{message:{content:JSON.stringify({answer:'连接成功',related_questions:[]})}}]}) }
+ try {
+  const request=(headers={})=>new Request('https://example.com/api/chat',{method:'POST',headers:{'Content-Type':'application/json',...headers},body:JSON.stringify({engine:'ai',question:'测试',selected_text:'学而时习之'})})
+  const env={AI_API_KEY:'server-key',AI_BASE_URL:'https://server.example/v1',AI_MODEL:'server-model'}
+  const response=await handleApi(request({'X-AI-Key':'page-key','X-AI-Provider':'deepseek','X-AI-Model':'test-model'}),env)
+  assert.equal(response.status,200)
+  assert.equal(calls[0].url,'https://api.deepseek.com/chat/completions')
+  assert.equal(calls[0].options.headers.Authorization,'Bearer page-key')
+  assert.equal(calls[0].options.redirect,'error')
+  assert.equal(env.AI_API_KEY,'server-key')
+  assert.equal(JSON.stringify(await response.json()).includes('page-key'),false)
+  const invalid=await handleApi(request({'X-AI-Key':'page-key','X-AI-Provider':'http://127.0.0.1','X-AI-Model':'test'}),env)
+  assert.equal(invalid.status,400);assert.equal(calls.length,1)
+  await handleApi(request(),env)
+  assert.equal(calls[1].options.headers.Authorization,'Bearer server-key')
+ } finally { globalThis.fetch=original }
+})

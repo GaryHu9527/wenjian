@@ -1,10 +1,11 @@
 import axios from 'axios'
+import { aiHeaders } from './aiSession'
 import { analyzeLocal, answerLocal } from './study'
 import { safeUrl } from './storage'
 const client = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL || '', timeout: 30000 })
-export async function apiRequest(path, payload, signal) {
+export async function apiRequest(path, payload, signal, headers = {}) {
   try {
-    const response = payload === undefined ? await client.get(path, { signal }) : await client.post(path, payload, { signal })
+    const response = payload === undefined ? await client.get(path, { signal }) : await client.post(path, payload, { signal, headers })
     if (!response.data?.success) throw new Error(response.data?.error?.message || '服务响应异常，请重试。')
     return response.data.data
   } catch (e) {
@@ -14,11 +15,11 @@ export async function apiRequest(path, payload, signal) {
 }
 export async function analyzeText(text, mode, context, article, engine = 'reference', signal) {
   if (engine === 'reference') return analyzeLocal(text, mode, article)
-  return apiRequest('/api/analyze', { text, mode, context, article, engine: 'ai' }, signal)
+  return apiRequest('/api/analyze', { text, mode, context, article, engine: 'ai' }, signal, aiHeaders())
 }
 export async function chatAboutText(question, selectedText, context, article, engine = 'reference', signal, history = []) {
   if (engine === 'reference') return answerLocal(question, selectedText, article)
-  return apiRequest('/api/chat', { question, selected_text: selectedText, context, article, history, engine: 'ai' }, signal)
+  return apiRequest('/api/chat', { question, selected_text: selectedText, context, article, history, engine: 'ai' }, signal, aiHeaders())
 }
 export async function searchZhihu(text, article, signal, discussionMode = 'live') {
   const result = await apiRequest('/api/zhihu/search', { text: text || article.title, article, count: 5, engine: discussionMode === 'mock' ? 'mock' : 'live' }, signal)

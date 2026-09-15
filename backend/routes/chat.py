@@ -1,5 +1,6 @@
 from flask import Blueprint, current_app, jsonify, request
 from services.ai_service import AiServiceError
+from services.request_ai import request_ai_service
 
 chat_bp = Blueprint("chat", __name__)
 
@@ -16,7 +17,7 @@ def chat():
     if len(question) > 1000 or len(text) > 1000:
         return jsonify(success=False, error={"code": "TEXT_TOO_LONG", "message": "提交的文本过长"}), 400
     try:
-        data = current_app.config["AI_SERVICE"].answer_chat(question.strip(), text.strip(), payload.get("context"), payload.get("article"), payload.get("analysis"))
+        data = request_ai_service().answer_chat(question.strip(), text.strip(), payload.get("context"), payload.get("article"), payload.get("analysis"))
         return jsonify(success=True, data=data)
     except AiServiceError as exc:
         return jsonify(success=False, error={"code": exc.code, "message": exc.message}), exc.status

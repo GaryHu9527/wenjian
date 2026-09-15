@@ -1,5 +1,6 @@
 from flask import Blueprint, current_app, jsonify, request
 from services.ai_service import AiServiceError
+from services.request_ai import request_analysis_service
 
 analyze_bp = Blueprint("analyze", __name__)
 VALID_MODES = {"word", "grammar", "translation", "knowledge", "comprehensive"}
@@ -16,7 +17,7 @@ def analyze():
     if len(text) > 1000 or not isinstance(context, str) or len(context) > 3000: return _error("TEXT_TOO_LONG", "提交的文本过长", 400)
     if not isinstance(mode, str) or mode not in VALID_MODES: return _error("INVALID_MODE", "不支持的分析模式", 400)
     try:
-        data = current_app.config["ANALYSIS_SERVICE"].analyze(text.strip(), context, payload.get("article"), mode)
+        data = request_analysis_service().analyze(text.strip(), context, payload.get("article"), mode)
         return jsonify(success=True, data=data)
     except AiServiceError as exc:
         return _error(exc.code, exc.message, exc.status)

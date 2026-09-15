@@ -1,5 +1,7 @@
 <script setup>
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import AiSettings from './components/AiSettings.vue'
+import { aiSession } from './services/aiSession'
 import AppLayout from './components/AppLayout.vue'
 import TopNavbar from './components/TopNavbar.vue'
 import ArticleSidebar from './components/ArticleSidebar.vue'
@@ -9,6 +11,7 @@ import { articles } from './data/articles'
 import { analyzeText, apiRequest, searchZhihu } from './services/api'
 import { readStored, writeStored } from './services/storage'
 const settings = ref(readStored('wenjian-settings', { theme: 'dark', fontSize: 22, engine: 'reference' }, d => d && ['dark','light'].includes(d.theme) && [18,20,22,24,26,28].includes(d.fontSize) && ['reference','ai'].includes(d.engine)))
+settings.value.engine = 'reference'
 settings.value.discussionMode = settings.value.discussionMode === 'mock' ? 'mock' : 'live'
 const discussionSource = ref('zhihu')
 const historyIds = readStored('wenjian-reading-history', [], d => Array.isArray(d) && d.every(x => typeof x === 'string'))
@@ -98,10 +101,11 @@ onMounted(() => { saveHistory(currentArticle.value); loadAnalysis('knowledge') }
  <template v-else>
   <label class="field">外观<select v-model="settings.theme"><option value="dark">墨色 · 深色</option><option value="light">纸白 · 浅色</option></select></label>
   <label class="field">原文字号 <span>{{ settings.fontSize }} px</span><input v-model.number="settings.fontSize" type="range" min="18" max="28" step="2" /></label>
-  <label class="field">分析与问答<select v-model="settings.engine"><option value="reference">篇目资料 · 无需外部服务</option><option value="ai" :disabled="!serviceStatus?.ai_available">AI 服务 {{ serviceStatus?.ai_available ? '· 已配置' : '· 尚未就绪' }}</option></select></label>
+  <label class="field">分析与问答<select v-model="settings.engine"><option value="reference">篇目资料 · 无需外部服务</option><option value="ai" :disabled="!aiSession && !serviceStatus?.ai_available">AI 服务 {{ aiSession || serviceStatus?.ai_available ? '· 已配置' : '· 尚未就绪' }}</option></select></label>
+  <AiSettings @enabled="settings.engine='ai'" @cleared="settings.engine='reference'" />
   <label class="field">讨论内容<select v-model="settings.discussionMode"><option value="live">知乎实时检索</option><option value="mock">演示数据 · 无需密钥</option></select></label>
   <p class="muted">篇目资料提供段落译文、重点字词、语法和主题问答。AI 模式用于更自由的问题。</p>
-  <div class="service-status" role="status"><p>阅读与笔记：可用</p><p>AI：{{ checking ? '正在检查…' : serviceStatus?.ai_available ? '已配置' : '未配置，当前使用篇目资料' }}</p><p>知乎：{{ checking ? '正在检查…' : serviceStatus?.zhihu_available ? '已配置，实际检索受服务配额限制' : '可通过搜索入口查看' }}</p><p v-if="serviceStatus?.unreachable">远程服务暂时不可达，本地阅读不受影响。</p><button @click="checkServices" :disabled="checking">重新检查</button></div>
+  <div class="service-status" role="status"><p>阅读与笔记：可用</p><p>AI：{{ aiSession ? '页面密钥已启用' : checking ? '正在检查…' : serviceStatus?.ai_available ? '已配置' : '未配置，当前使用篇目资料' }}</p><p>知乎：{{ checking ? '正在检查…' : serviceStatus?.zhihu_available ? '已配置，实际检索受服务配额限制' : '可通过搜索入口查看' }}</p><p v-if="serviceStatus?.unreachable">远程服务暂时不可达，本地阅读不受影响。</p><button @click="checkServices" :disabled="checking">重新检查</button></div>
  </template>
 </dialog>
 </template>

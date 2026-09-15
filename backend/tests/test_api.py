@@ -7,6 +7,26 @@ class ApiTestCase(unittest.TestCase):
     def setUp(self):
         self.client = create_app(Config(use_mock_ai=True, use_mock_zhihu=True)).test_client()
 
+    def test_page_credentials_are_isolated(self):
+        from unittest.mock import patch
+        from services.request_ai import request_ai_service
+        app = self.client.application
+        headers = {'X-AI-Key': 'page-test-key', 'X-AI-Provider': 'deepseek', 'X-AI-Model': 'test-model'}
+        with app.test_request_context(headers=headers):
+            service = request_ai_service()
+            self.assertEqual(service.config.ai_api_key, 'page-test-key')
+            self.assertEqual(service.config.ai_base_url, 'https://api.deepseek.com')
+            self.assertFalse(service.config.use_mock_ai)
+        with app.test_request_context():
+            self.assertIs(request_ai_service(), app.config['AI_SERVICE'])
+        with patch('services.ai_service.AiService.answer_chat', return_value={'answer': '连接成功'}) as remote:
+            response = self.client.post('/api/chat', headers=headers, json={'question': '测试', 'selected_text': '学而时习之'})
+            self.assertEqual(response.status_code, 200)
+            remote.assert_called_once()
+        response = self.client.post('/api/chat', headers={**headers, 'X-AI-Provider': 'http://127.0.0.1'}, json={'question': '测试', 'selected_text': '学而时习之'})
+        self.assertEqual(response.status_code, 400)
+        self.assertNotIn('page-test-key', response.get_data(as_text=True))
+
     def test_health(self):
         response = self.client.get("/api/health")
         self.assertEqual(response.status_code, 200)

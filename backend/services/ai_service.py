@@ -37,7 +37,7 @@ class AiService:
         output = {}
         for item_mode in modes:
             try:
-                response = requests.post(f"{self.config.ai_base_url.rstrip('/')}/chat/completions", headers={"Authorization": f"Bearer {self.config.ai_api_key}", "Content-Type": "application/json"}, json={"model": self.config.ai_model, "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": build_prompt(text, context, article, item_mode, nlp_context, translation_reference)}], "temperature": 0.2, "response_format": {"type": "json_object"}}, timeout=20)
+                response = requests.post(f"{self.config.ai_base_url.rstrip('/')}/chat/completions", headers={"Authorization": f"Bearer {self.config.ai_api_key}", "Content-Type": "application/json"}, json={"model": self.config.ai_model, "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": build_prompt(text, context, article, item_mode, nlp_context, translation_reference)}], "temperature": 0.2, "response_format": {"type": "json_object"}}, timeout=20, allow_redirects=False)
             except requests.Timeout as exc:
                 raise AiServiceError("AI_TIMEOUT", "分析服务响应较慢，请稍后重试", 502) from exc
             except requests.RequestException as exc:
@@ -78,7 +78,7 @@ class AiService:
             {"role": "user", "content": json.dumps({"question": question, "selected_text": selected_text, "context": context, "article": article, "analysis": analysis}, ensure_ascii=False)},
         ]
         try:
-            response = requests.post(f"{self.config.ai_base_url.rstrip('/')}/chat/completions", headers={"Authorization": f"Bearer {self.config.ai_api_key}"}, json={"model": self.config.ai_model, "messages": messages, "temperature": 0.2, "response_format": {"type": "json_object"}}, timeout=25)
+            response = requests.post(f"{self.config.ai_base_url.rstrip('/')}/chat/completions", headers={"Authorization": f"Bearer {self.config.ai_api_key}"}, json={"model": self.config.ai_model, "messages": messages, "temperature": 0.2, "response_format": {"type": "json_object"}}, timeout=25, allow_redirects=False)
             if response.status_code == 429:
                 raise AiServiceError("AI_RATE_LIMITED", "AI 服务繁忙，请稍后重试", 429)
             if not response.ok:
